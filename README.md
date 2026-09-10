@@ -12,16 +12,14 @@ command it runs, every page it opens. And you're not just watching — you
 can type into that terminal and click in that browser yourself, at any
 moment, in the same session your agent is using.
 
-```
-┌───────────────────────────┬───────────────────────────┐
-│  agent@muse:~$ npm run dev│  ⌂ http://localhost:3000  │
-│  ▸ ready on :3000         │  ┌─────────────────────┐  │
-│  agent@muse:~$ ▏          │  │  the app your agent │  │
-│                           │  │  just built, live,  │  │
-│  ← real tmux. you can     │  │  clickable          │  │
-│    type here.             │  └─────────────────────┘  │
-└───────────────────────────┴───────────────────────────┘
-```
+![TerMuse: the agent's live terminal on the left, its localhost app rendered
+and clickable on the right](docs/termuse.png)
+
+*Above: the agent just ran `npm install -g hermes-web-ui` and started it on
+`localhost:8648` — you can read that happening in the left pane. The right
+pane is that same localhost app, rendered and fully clickable, on a machine
+your browser has no route to. Follow mode is on, and the divider is
+draggable (40/60, 50/50, 60/40).*
 
 ## Why this exists
 
@@ -77,6 +75,7 @@ outside the app. If a setup step ever asks you to, something has gone wrong.
 | **Public sites too** | Point the address bar anywhere; public URLs render directly. |
 | **Follow mode** | The browser pane tracks your agent as it browses. |
 | **Symmetric control** | You and your agent share both panes. Neither side is view-only. |
+| **Adjustable split** | Drag the divider, or snap to 40/60, 50/50, 60/40. |
 | **Always on** | A watchdog restarts the relay after reboots. The link just works. |
 
 ## How it works
