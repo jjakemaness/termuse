@@ -35,36 +35,74 @@ Two things are normally impossible from your side of the screen:
 That second one is the whole trick, and it's why this repo exists instead
 of a browser extension.
 
-## Setup: paste one file to your agent
+## Setup
 
-You don't install anything. You don't run anything. You don't configure
-anything. **Your agent does all of it.**
+Two steps. Your agent builds the view; you run one command inside it.
+
+### Step 1 — paste the prompt to your agent
 
 1. Open **[`PROMPT.md`](PROMPT.md)**.
 2. Copy everything below the `---` divider.
-3. Paste it to your Muse Spark as a single message, along with a link to
-   this repo:
+3. Paste it to your Muse Spark as a single message, with a link to this repo:
 
    > Here's the repo: `https://github.com/jjakemaness/termuse`
    >
    > *(then the pasted prompt)*
 
-4. Wait a few minutes. Your agent reads the repo, runs the setup, verifies
-   the connection end to end, and hands you a private link.
+4. Wait a few minutes. Your agent builds the split view, tests every
+   control, and hands you a private link with its results.
 
-Open the link. You're in.
+Open the link. You should have a terminal on the left and a browser on the
+right, and you should be able to **type in one and click in the other**.
+
+### Step 2 — run the installer in your new terminal
+
+Only your agent can build the view. Everything after that is scripts, so you
+run those yourself and get the repo's exact bytes instead of your agent's
+paraphrase of them. In the **terminal pane**:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jjakemaness/termuse/main/scripts/install.sh -o install.sh
+less install.sh    # optional: read it first. it schedules a job and writes to $HOME
+bash install.sh
+```
+
+That schedules the watchdog (which keeps the view alive across reboots) and
+turns on install persistence, so anything you `npm install -g` or `pip
+install` from this terminal still works after the machine restarts.
+
+Re-run it any time to update. `bash install.sh --uninstall` removes the
+schedule.
 
 ### What you're actually giving your agent
 
-Just two things — the repo and the prompt. The prompt is a complete build
-spec: it tells your agent to run `scripts/setup.sh`, verify a real
-round-trip through the relay, schedule the watchdog, build your private
-TerMuse page, test every control, and only then give you the link. It also
-lists the approaches that were tried and **failed**, so your agent doesn't
-burn an hour rediscovering them.
+Two things: the repo link and the prompt. The prompt is a build spec — it
+tells your agent exactly what to build, requires that **both panes accept
+your input** rather than being view-only, makes it report per-check evidence
+instead of claiming success, and lists the approaches that were tried and
+**failed** so it doesn't burn an hour rediscovering them.
 
-You are not asked to paste tokens, edit config files, or open anything
-outside the app. If a setup step ever asks you to, something has gone wrong.
+You are never asked to paste tokens or edit config files. If your agent asks
+you to, it went off-script.
+
+## Is it actually working?
+
+The most common bad outcome isn't a crash — it's an agent handing you a
+**view-only** page and reporting success. Spend a minute on these. All five
+should pass:
+
+| # | Do this | Expected |
+|---|---|---|
+| 1 | Type `echo hello` in the terminal pane | `hello` comes back |
+| 2 | Click a button in the browser pane | its state changes |
+| 3 | Click a text field and type | your text appears |
+| 4 | Scroll the browser pane | the page moves |
+| 5 | Put a `localhost:<port>` of your agent's in the address bar | its app renders |
+
+**1–4 are the whole point.** If you can see both panes but can't change
+anything, you have a screenshot viewer, not TerMuse — go back to your agent,
+tell it which check failed, and point it at "Symmetric control" in
+`PROMPT.md`. That section exists because this is the step agents skip.
 
 ## What you get
 
@@ -108,9 +146,10 @@ short. Read it.
 | Path | What it is |
 |---|---|
 | **`PROMPT.md`** | **Start here.** The message you paste to your Muse Spark. |
-| `scripts/setup.sh` | One-shot setup your agent runs: deps, secrets, tmux, bridge. |
+| **`scripts/install.sh`** | **Step 2.** You run this in the terminal; schedules the watchdog and install persistence. |
+| `scripts/setup.sh` | One-shot relay setup your agent runs: deps, secrets, tmux, bridge. |
 | `scripts/bridge.js` | The terminal relay. Zero npm dependencies. |
-| `scripts/watchdog.sh` | Keeps the relay alive; scheduled every 5 minutes. |
+| `scripts/watchdog.sh` | Keeps the view alive and restores installs after reboots. Runs every 5 min. |
 | `config.example.json` | Shape of the generated `config.json` (the real one is gitignored). |
 | `ARCHITECTURE.md` | How the pieces fit together, and why the simpler designs failed. |
 | `SECURITY.md` | Threat model and tradeoffs. |
@@ -124,9 +163,14 @@ No accounts to create, no tunnels, no extensions, no npm install.
 
 ## Turning it off
 
-Remove the scheduled `watchdog.sh` and kill the bridge process. The relay
-stops; nothing is left listening. To rotate your topics after a suspected
-leak, run `scripts/setup.sh --reset` and have your agent rewire the page.
+```bash
+bash install.sh --uninstall
+```
+
+That removes the schedule. Nothing is left listening. Your mirrored installs
+stay in `~/.termuse/` until you delete them by hand — the uninstall tells you
+where. To rotate relay topics after a suspected leak, run
+`scripts/setup.sh --reset` and have your agent rewire the page.
 
 ## License
 

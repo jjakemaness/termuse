@@ -12,24 +12,25 @@ LOG_DIR="$SCRIPT_DIR/../logs"
 LOG="$LOG_DIR/watchdog.log"
 mkdir -p "$LOG_DIR"
 
-if [ ! -f "$CFG" ]; then
-  echo "$(date -u +%FT%TZ) [watchdog] $CFG missing; run scripts/setup.sh first" >> "$LOG"
-  exit 1
-fi
+# The ntfy relay is only one of the two ways the terminal pane can be wired.
+# Where the artifact's actions reach tmux directly (same machine), there is no
+# config.json and nothing to keep alive here — so skip this section rather
+# than exiting, because the reboot-persistence section below must still run.
+if [ -f "$CFG" ]; then
+  SESSION="$(node -p "JSON.parse(require('fs').readFileSync('$CFG','utf8')).tmuxSession")"
+  OUT="$(node -p "JSON.parse(require('fs').readFileSync('$CFG','utf8')).topicOut")"
+  INP="$(node -p "JSON.parse(require('fs').readFileSync('$CFG','utf8')).topicIn")"
 
-SESSION="$(node -p "JSON.parse(require('fs').readFileSync('$CFG','utf8')).tmuxSession")"
-OUT="$(node -p "JSON.parse(require('fs').readFileSync('$CFG','utf8')).topicOut")"
-INP="$(node -p "JSON.parse(require('fs').readFileSync('$CFG','utf8')).topicIn")"
+  if ! tmux has-session -t "$SESSION" 2>/dev/null; then
+    echo "$(date -u +%FT%TZ) [watchdog] tmux session '$SESSION' missing -> recreating" >> "$LOG"
+    tmux new-session -d -s "$SESSION" -x 120 -y 30
+  fi
 
-if ! tmux has-session -t "$SESSION" 2>/dev/null; then
-  echo "$(date -u +%FT%TZ) [watchdog] tmux session '$SESSION' missing -> recreating" >> "$LOG"
-  tmux new-session -d -s "$SESSION" -x 120 -y 30
-fi
-
-if ! pgrep -f "$SCRIPT_DIR/bridge.js" >/dev/null; then
-  echo "$(date -u +%FT%TZ) [watchdog] bridge down -> restarting" >> "$LOG"
-  nohup node "$SCRIPT_DIR/bridge.js" "$OUT" "$INP" "$SESSION" >> "$LOG_DIR/bridge.log" 2>&1 &
-  echo "$(date -u +%FT%TZ) [watchdog] bridge restarted" >> "$LOG"
+  if ! pgrep -f "$SCRIPT_DIR/bridge.js" >/dev/null; then
+    echo "$(date -u +%FT%TZ) [watchdog] bridge down -> restarting" >> "$LOG"
+    nohup node "$SCRIPT_DIR/bridge.js" "$OUT" "$INP" "$SESSION" >> "$LOG_DIR/bridge.log" 2>&1 &
+    echo "$(date -u +%FT%TZ) [watchdog] bridge restarted" >> "$LOG"
+  fi
 fi
 
 # --- Keep terminal installs alive across reboots -------------------------

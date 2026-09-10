@@ -67,9 +67,15 @@ Read all of them before you start.
    in-topic, wait a few seconds, then `tmux capture-pane -p -t <session>`
    and confirm your marker appears. If it doesn't, debug until it does —
    do not proceed on a broken relay.
-3. Install `bash <repo>/scripts/watchdog.sh` on your scheduler to run every
-   5 minutes. This recreates the tmux session and restarts the bridge after
-   reboots. Confirm it is scheduled and tell the user it is always-on.
+3. **Do not install the watchdog or schedule anything.** That is the user's
+   step, not yours — they run `scripts/install.sh` from inside the finished
+   terminal, which fetches the scripts straight from the repo and schedules
+   them. Your job ends at a working, interactive split view.
+
+   Two reasons this split exists, and both matter: the user gets the repo's
+   exact bytes rather than your paraphrase of them, and fixes reach them by
+   re-running one command instead of re-prompting you. Adding your own
+   scheduled copy on top will fight theirs. Leave it alone.
 
 ## 2. Build the TerMuse artifact
 
@@ -111,9 +117,18 @@ it exposes the user's agent terminal). Name it "TerMuse".
   cookies, history) survives between interactions.
 - **Follow mode:** the pane can follow YOUR browsing. Keep a shared
   follow-URL state with get/set actions; when you browse, the pane follows.
-- **Symmetric control:** the user and you can both click, type, and scroll
-  the relay browser, and both can type in the terminal. Neither side is
-  view-only.
+- **Symmetric control — this is the feature people actually want, and the
+  one most likely to get quietly dropped. Do not ship without it.**
+  - The user can **type into the terminal pane** and their keystrokes reach
+    the real shell. A terminal the user can read but not type into is a
+    failed build, not a partial one.
+  - The user can **click, type into, and scroll the browser pane**, and
+    those actions hit the real page — not a static capture of it.
+  - Neither pane is view-only, and neither is agent-only. Every control you
+    have, the user has.
+  - If your runtime cannot wire user input to a pane, say so plainly in the
+    handover instead of shipping a viewer and calling it done. A read-only
+    build is the single most common way this goes wrong.
 
 ## 3. Dead ends — do NOT do any of these
 
@@ -129,31 +144,53 @@ These were all tried and failed. Do not revisit them:
 
 ## 4. Verify everything before handing it over
 
-- Terminal: type a command in the pane yourself (via your send action) and
-  confirm the output appears; confirm the user's typing also works.
-- Relay: serve a temporary test page on your localhost with a button, a
-  text input, and a tall scroll area. `navigate` to it through the relay,
-  `click` the button and confirm its state change, focus the input and
-  `type` text plus a special key, `scroll` and confirm movement. Then stop
-  the test server.
-- Public URL: load a public site in the iframe and confirm it renders.
-- Follow mode: set a follow URL and confirm the pane follows.
-- Only when all of the above pass, give the user the link.
+Run every check below and **report the result of each one to the user with
+the evidence** — the command you sent and the output you got back, the
+element you clicked and how its state changed. Do not summarize this as
+"tested and working"; the user cannot audit a claim, only evidence.
+
+- **Terminal, your input:** send `echo termuse-check-$(date +%s)` and paste
+  the exact line that came back.
+- **Terminal, the user's input:** confirm the pane accepts typed input from
+  the user's side. State which mechanism carries it. If you cannot verify
+  this without the user, say so and ask them to type one command.
+- **Browser, interaction:** serve a temporary page on your localhost with a
+  button, a text input, and a tall scroll area. Through the relay:
+  `navigate` to it, `click` the button and report the state change, focus
+  the input and `type` text plus one special key and report what the field
+  contains, `scroll` and report the offset moving. Then stop the test server.
+- **Public URL:** load a public site in the iframe and confirm it renders.
+- **Agent localhost:** load a real server of yours and confirm it renders.
+- **Follow mode:** set a follow URL and confirm the pane follows.
+
+**If any check fails, fix it before handing over the link.** Do not report
+partial success as success. Shipping a link to a broken pane wastes far more
+of the user's time than telling them a check failed.
 
 ## 5. Hand over + security briefing
 
 Tell the user, in plain language:
 
-- What you built and that the terminal relay is always-on (every 5-minute
-  check), and how to turn it off (remove the scheduled watchdog).
-- The honest tradeoff: the relay topics are unguessable but public — anyone
-  holding the in-topic could inject shell commands. Their topics are fresh
-  and known only to them; they should treat the in-topic like a password.
+- What you built, and the per-check evidence from section 4.
+- **Their next step, quoted exactly so they can copy it.** Tell them to run
+  this in the terminal pane you just gave them, and that it schedules the
+  watchdog and makes their installs survive reboots:
+
+  ```
+  curl -fsSL https://raw.githubusercontent.com/jjakemaness/termuse/main/scripts/install.sh -o install.sh && bash install.sh
+  ```
+
+  Point them at the README's "Is it actually working?" checks as well.
+- The honest tradeoff, if you used the ntfy relay: the topics are
+  unguessable but public — anyone holding the in-topic could inject shell
+  commands. Their topics are fresh and known only to them; they should treat
+  the in-topic like a password. Say plainly which wiring you used.
 - That no personal info, keys, or their topics appear anywhere in the repo.
 
 ## Done criteria
 
-The user can open one private page, see your live terminal, type in it,
-see your browser, click/type/scroll in it, point it at public sites and at
-your localhost servers, and have it follow your browsing. Nothing in the
-repo identifies them.
+The user can open one private page and **both watch and drive** it: read the
+live terminal *and type into it*, see the browser *and click, type, and
+scroll in it*, point it at public sites and at your localhost servers, and
+have it follow your browsing. If they can see everything but change nothing,
+you have not met these criteria. Nothing in the repo identifies them.
