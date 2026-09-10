@@ -150,14 +150,20 @@ short. Read it.
 | `scripts/setup.sh` | One-shot relay setup your agent runs: deps, secrets, tmux, bridge. |
 | `scripts/bridge.js` | The terminal relay. Zero npm dependencies. |
 | `scripts/watchdog.sh` | Keeps the view alive and restores installs after reboots. Runs every 5 min. |
+| `scripts/loop.sh` | Keepalive fallback for platforms with no cron or systemd. |
 | `config.example.json` | Shape of the generated `config.json` (the real one is gitignored). |
 | `ARCHITECTURE.md` | How the pieces fit together, and why the simpler designs failed. |
 | `SECURITY.md` | Threat model and tradeoffs. |
 
 ## Requirements
 
-On the agent's machine: `tmux`, `node`, `curl`, `openssl`, and a scheduler
-(cron or the platform's equivalent). On yours: a browser.
+On the agent's machine: `tmux`, `curl`, and `node`/`openssl` if you use the
+ntfy relay path. On yours: a browser.
+
+**No scheduler required.** The installer uses `cron` or a `systemd` user
+timer when they exist, and otherwise runs its own keepalive loop, re-armed
+from your shell profile. Bare agent containers usually have neither, which
+is why the fallback exists.
 
 No accounts to create, no tunnels, no extensions, no npm install.
 
