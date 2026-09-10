@@ -32,47 +32,51 @@ if ! pgrep -f "$SCRIPT_DIR/bridge.js" >/dev/null; then
   echo "$(date -u +%FT%TZ) [watchdog] bridge restarted" >> "$LOG"
 fi
 
-# --- Optional: survive /usr/local wipes across reboots ---
-# This platform reboots often and /usr/local is wiped every time. If the user
-# depends on a tool installed there (e.g. the Hermes agent), keep a full copy
-# of the install under the home directory (which survives reboots) plus a
-# manifest of its /usr/local/bin launchers, and restore both here when they
-# go missing. The example below is for Hermes — uncomment and adapt it only
-# if the user actually uses that tool. It only restores from copies the agent
-# previously made with the user's approval; it never downloads or installs
-# anything on its own. Because the manifest records whatever launchers exist
-# (hermes, hermes-acp, hermes-web-ui, ...), newly installed launchers are
-# picked up automatically. If the user upgrades the tool, refresh the home
-# copy from the live install afterwards.
+# --- Keep terminal installs alive across reboots -------------------------
+# Some agent platforms wipe /usr/local on every reboot while $HOME persists.
+# That silently destroys anything installed from the TerMuse terminal:
+# `npm -g` (launchers in /usr/local/bin AND payloads in
+# /usr/local/lib/node_modules), system pip, `curl | sh` installers, and
+# hand-placed binaries. /usr/bin (apt, tmux, node) is unaffected.
 #
-# HBIN="$HOME/hermes-agent-bin"
-# mkdir -p "$HBIN"
-# hermes_launcher() { # $1 = path in /usr/local/bin; true = Hermes launcher
-#   [ -f "$1" ] || return 1
-#   case "$(basename "$1")" in hermes*) return 0;; esac
-#   [ "$(stat -c%s "$1" 2>/dev/null || echo 0)" -gt 102400 ] && return 1
-#   grep -q "hermes-agent" "$1" 2>/dev/null
-# }
-# if [ -x /usr/local/bin/hermes ]; then
-#   for f in /usr/local/bin/*; do
-#     hermes_launcher "$f" || continue
-#     n="$(basename "$f")"
-#     cmp -s "$f" "$HBIN/$n" 2>/dev/null || cp -a "$f" "$HBIN/$n"
-#   done
-# else
-#   if [ -x "$HOME/hermes-agent/venv/bin/python" ] && [ -f "$HOME/hermes-agent/hermes" ]; then
-#     echo "$(date -u +%FT%TZ) [watchdog] hermes missing -> restoring from ~/hermes-agent" >> "$LOG"
-#     mkdir -p /usr/local/lib /usr/local/bin
-#     if [ -e /usr/local/lib/hermes-agent ] && [ ! -L /usr/local/lib/hermes-agent ]; then
-#       rm -rf /usr/local/lib/hermes-agent
-#     fi
-#     ln -sfn "$HOME/hermes-agent" /usr/local/lib/hermes-agent
-#     for w in "$HBIN"/*; do
-#       [ -f "$w" ] || continue
-#       cp -a "$w" "/usr/local/bin/$(basename "$w")"
-#     done
-#     echo "$(date -u +%FT%TZ) [watchdog] hermes restored" >> "$LOG"
-#   else
-#     echo "$(date -u +%FT%TZ) [watchdog] hermes missing and no ~/hermes-agent copy; ask the user before installing anything" >> "$LOG"
-#   fi
-# fi
+# This mirrors /usr/local into $HOME each tick and restores it after a wipe.
+# /usr/local/bin is already on the session PATH, so restored commands work
+# immediately with no shell-config changes.
+#
+# The mirror is ADDITIVE BY DESIGN — it never deletes. A tick that runs while
+# /usr/local is empty therefore cannot destroy the backup, which is the only
+# failure here that would actually lose you something. The tradeoff: anything
+# you deliberately uninstall returns after the next reboot unless you also
+# delete it from the mirror.
+#
+# TERMUSE_MIRROR=0 disables. Harmless on platforms that never wipe.
+
+USRLOCAL="${TERMUSE_USRLOCAL:-/usr/local}"
+MIRROR="${TERMUSE_MIRROR_DIR:-$HOME/.termuse/usr-local}"
+ALIVE="$USRLOCAL/.termuse-alive"
+
+if [ "${TERMUSE_MIRROR:-1}" = "1" ] && mkdir -p "$USRLOCAL" 2>/dev/null && [ -w "$USRLOCAL" ]; then
+
+  # Restore first. A missing sentinel plus a non-empty mirror means the tree
+  # was wiped — the sentinel lives inside it, so a wipe takes it too.
+  if [ ! -f "$ALIVE" ] && [ -n "$(ls -A "$MIRROR" 2>/dev/null)" ]; then
+    echo "$(date -u +%FT%TZ) [watchdog] $USRLOCAL was wiped -> restoring from $MIRROR" >> "$LOG"
+    if cp -a "$MIRROR"/. "$USRLOCAL"/ 2>>"$LOG"; then
+      echo "$(date -u +%FT%TZ) [watchdog] $USRLOCAL restored ($(find "$USRLOCAL" -type f 2>/dev/null | wc -l | tr -d ' ') files)" >> "$LOG"
+    else
+      echo "$(date -u +%FT%TZ) [watchdog] $USRLOCAL restore reported errors; see above" >> "$LOG"
+    fi
+  fi
+
+  # Then mirror forward, but only when there is something real to copy.
+  if [ -n "$(ls -A "$USRLOCAL" 2>/dev/null)" ]; then
+    mkdir -p "$MIRROR"
+    if command -v rsync >/dev/null 2>&1; then
+      rsync -a --exclude .termuse-alive "$USRLOCAL"/ "$MIRROR"/ 2>>"$LOG"
+    else
+      cp -a "$USRLOCAL"/. "$MIRROR"/ 2>>"$LOG"   # full copy; correct, less efficient
+      rm -f "$MIRROR/.termuse-alive"
+    fi
+    touch "$ALIVE"
+  fi
+fi
