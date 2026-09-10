@@ -1,0 +1,11 @@
+# Generated secrets and local state — NEVER commit these.
+config.json
+logs/
+*.log
+
+# Dependencies
+node_modules/
+
+# OS noise
+.DS_Store
+Thumbs.db
